@@ -1,0 +1,275 @@
+{
+  "name": "YouTube AI Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "youtube-workflow",
+        "options": {}
+      },
+      "id": "dc9c2574-5b18-4f4c-9f2c-1a2f0b1e8c7d",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [220, 300],
+      "webhookId": "a1b2c3d4-e5f6-7890-1234-56789abcdef0"
+    },
+    {
+      "parameters": {
+        "command": "python scripts/process_video.py --url={{$json.youtube_url}}",
+        "options": {
+          "cwd": "/app"
+        }
+      },
+      "id": "8f9e8d7c-6b5a-4321-0987-6543210fedcb",
+      "name": "Process Video Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$node['Process Video Script'].json.exitCode}}",
+              "operation": "equal",
+              "value2": "0"
+            }
+          ]
+        }
+      },
+      "id": "7c6b5a49-3827-1605-9483-7261504938",
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "command": "python scripts/transcribe_audio.py --input={{$json.video_path}}",
+        "options": {
+          "cwd": "/app"
+        }
+      },
+      "id": "5d4c3b2a-1908-7654-3210-fedcba098765",
+      "name": "Transcribe Audio",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [880, 220]
+    },
+    {
+      "parameters": {
+        "command": "python scripts/summarize_text.py --input={{$json.transcription_path}}",
+        "options": {
+          "cwd": "/app"
+        }
+      },
+      "id": "9e8d7c6b-5a49-3827-1605-948372615049",
+      "name": "Summarize Content",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1100, 220]
+    },
+    {
+      "parameters": {
+        "command": "python scripts/generate_blog.py --summary={{$json.summary_path}}",
+        "options": {
+          "cwd": "/app"
+        }
+      },
+      "id": "3b2a1908-7654-3210-fedc-ba0987654321",
+      "name": "Generate Blog",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1320, 120]
+    },
+    {
+      "parameters": {
+        "command": "python scripts/create_podcast.py --summary={{$json.summary_path}}",
+        "options": {
+          "cwd": "/app"
+        }
+      },
+      "id": "1908-7654-3210-fedc-ba09876543210",
+      "name": "Create Podcast",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1320, 320]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://localhost:3000/api/content",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "body": {
+          "blog_path": "={{$node['Generate Blog'].json.output_path}}",
+          "podcast_path": "={{$node['Create Podcast'].json.output_path}}",
+          "summary": "={{$node['Summarize Content'].json.summary}}",
+          "youtube_url": "={{$node['Webhook'].json.body.youtube_url}}"
+        }
+      },
+      "id": "7654-3210-fedc-ba098765432109876",
+      "name": "Publish Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1540, 220]
+    },
+    {
+      "parameters": {
+        "message": "Workflow completed successfully! Content published."
+      },
+      "id": "3210-fedc-ba0987654321098765432",
+      "name": "Success Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1760, 220]
+    },
+    {
+      "parameters": {
+        "message": "Workflow failed: {{$json.error}}"
+      },
+      "id": "fedc-ba09876543210987654321098",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [880, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Video Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Video Script": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Audio": {
+      "main": [
+        [
+          {
+            "node": "Summarize Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Content": {
+      "main": [
+        [
+          {
+            "node": "Generate Blog",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Podcast",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Blog": {
+      "main": [
+        [
+          {
+            "node": "Publish Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Podcast": {
+      "main": [
+        [
+          {
+            "node": "Publish Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Content": {
+      "main": [
+        [
+          {
+            "node": "Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "createdAt": "2025-08-26T03:09:00.000Z",
+  "id": "youtube-ai-workflow",
+  "meta": {
+    "instanceId": "your-n8n-instance-id"
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-08-26T03:09:00.000Z",
+      "id": "1",
+      "name": "youtube",
+      "updatedAt": "2025-08-26T03:09:00.000Z"
+    },
+    {
+      "createdAt": "2025-08-26T03:09:00.000Z",
+      "id": "2",
+      "name": "ai",
+      "updatedAt": "2025-08-26T03:09:00.000Z"
+    },
+    {
+      "createdAt": "2025-08-26T03:09:00.000Z",
+      "id": "3",
+      "name": "automation",
+      "updatedAt": "2025-08-26T03:09:00.000Z"
+    }
+  ],
+  "updatedAt": "2025-08-26T03:09:00.000Z",
+  "versionId": "1"
+}
