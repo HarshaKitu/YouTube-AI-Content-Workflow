@@ -1,0 +1,6 @@
+yt-dlp
+openai-whisper
+coqui-tts
+markdown
+transformers
+requests
